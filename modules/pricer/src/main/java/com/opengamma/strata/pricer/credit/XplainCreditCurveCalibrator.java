@@ -1,5 +1,7 @@
 package com.opengamma.strata.pricer.credit;
 
+import static com.opengamma.strata.market.curve.CurveInfoType.JACOBIAN_2;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableList.Builder;
 import com.google.common.collect.ImmutableMap;
@@ -189,9 +191,130 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
         refData);
   }
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // OG ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // original OG jacobian calculation (use this for testing)
+  private NodalCurve ogJacobianCalculation(StandardId legalEntityId,
+      Currency currency,
+      LocalDate valuationDate,
+      NodalCurve nodalCurve,
+      ImmutableCreditRatesProvider ratesProvider,
+      CdsQuoteConvention quoteConvention,
+      CurveName name,
+      int nNodes,
+      ReferenceData refData,
+      double[][] diag,
+      ImmutableList<ResolvedCdsTrade> trades) {
+    JacobianCalibrationMatrix jacobian = hazardRateByCreditRateCalibrationMatrix(legalEntityId,
+        currency,
+        valuationDate,
+        nodalCurve,
+        ratesProvider,
+        quoteConvention,
+        name,
+        nNodes,
+        refData,
+        diag,
+        trades);
+    return nodalCurve.withMetadata(nodalCurve.getMetadata().withInfo(CurveInfoType.JACOBIAN, jacobian));
+  }
+
+  /**
+   * Jacobians generated: (1) ∂ZHRates/∂CreditRates (2) ∂ZHRates/∂Rates
+   *      -> ∂ZHRates/∂Rates = ∂ZHRates/∂ZCRates * ∂ZCRates/∂Rates
+   *      -> ∂ZHRates/∂ZCRates = - ∂F/ZCRates * [∂F/∂ZHRates]^-1     (implicit function theorem)
+   *         where F(ZCRates,ZHRates) is a vector-valued function that returns the value of CDS trades
+   *   the process by which ∂ZHRates/∂ZCRates is constructed is as follows:
+   *      -> initialise m-n matrix (m = number of trades, n = number of nodes in discount curve)
+   *          -> for each ZCRate, bump and revalue each trade, and produce matrix => M1
+   *      -> initialise m-n matrix (m = number of trades, n = number of nodes in credit curve)
+   *          -> for each ZHRate, bump and revalue each trade, and produce matrix
+   *          -> invert matrix => M2
+   *      -> ∂ZHRates/∂ZCRates = -M1 * M2
+   *   the jacobian matrix of ∂ZHRates/∂Rates is then generated via ∂ZHRates/∂ZCRates * ∂ZCRates/∂ZRates
+   *      where ∂ZCRates/∂ZRates is extracted from the previously calibrated discount curve
+   * @param legalEntityId
+   * @param currency
+   * @param valuationDate
+   * @param nodalCurve
+   * @param ratesProvider
+   * @param quoteConvention
+   * @param name
+   * @param nNodes
+   * @param refData
+   * @param diag
+   * @param trades
+   * @return
+   */
+  private NodalCurve xplJacobianCalculation(StandardId legalEntityId,
+      Currency currency,
+      LocalDate valuationDate,
+      NodalCurve nodalCurve,
+      ImmutableCreditRatesProvider ratesProvider,
+      CdsQuoteConvention quoteConvention,
+      CurveName name,
+      int nNodes,
+      ReferenceData refData,
+      double[][] diag,
+      ImmutableList<ResolvedCdsTrade> trades) {
+
+    JacobianCalibrationMatrix dZhrDCrJacobian = hazardRateByCreditRateCalibrationMatrix(legalEntityId, currency, valuationDate, nodalCurve, ratesProvider, quoteConvention, name, nNodes, refData, diag, trades);
+    JacobianCalibrationMatrix dZhrDCrJacobian2 = hazardRateBySwapRateCalibrationMatrix(legalEntityId, currency, valuationDate, nodalCurve, ratesProvider, quoteConvention, name, nNodes, refData, diag, trades);
+    nodalCurve = nodalCurve.withMetadata(nodalCurve.getMetadata().withInfo(CurveInfoType.JACOBIAN, dZhrDCrJacobian));
+    nodalCurve = nodalCurve.withMetadata(nodalCurve.getMetadata().withInfo(CurveInfoType.JACOBIAN_2, dZhrDCrJacobian2));
+    return nodalCurve;
+  }
+
+  // ∂ZHRates/∂CreditRates
+  private JacobianCalibrationMatrix hazardRateByCreditRateCalibrationMatrix(StandardId legalEntityId,
+      Currency currency,
+      LocalDate valuationDate,
+      NodalCurve nodalCurve,
+      ImmutableCreditRatesProvider ratesProvider,
+      CdsQuoteConvention quoteConvention,
+      CurveName name,
+      int nNodes,
+      ReferenceData refData,
+      double[][] diag,
+      ImmutableList<ResolvedCdsTrade> trades) {
+    LegalEntitySurvivalProbabilities creditCurve = LegalEntitySurvivalProbabilities.of(
+        legalEntityId, IsdaCreditDiscountFactors.of(currency, valuationDate, nodalCurve));
+    ImmutableCreditRatesProvider ratesProviderNew = ratesProvider.toBuilder()
+        .creditCurves(ImmutableMap.of(Pair.of(legalEntityId, currency), creditCurve))
+        .build();
+    Function<ResolvedCdsTrade, DoubleArray> sensiFunc = quoteConvention.equals(CdsQuoteConvention.PAR_SPREAD) ?
+        getParSpreadSensitivityFunction(ratesProviderNew, name, currency, refData) :
+        getPointsUpfrontSensitivityFunction(ratesProviderNew, name, currency, refData);
+    DoubleMatrix sensi = DoubleMatrix.ofArrayObjects(nNodes, nNodes, i -> sensiFunc.apply(trades.get(i)));
+    sensi = (DoubleMatrix) MATRIX_ALGEBRA.multiply(DoubleMatrix.ofUnsafe(diag), sensi);
+    return JacobianCalibrationMatrix.of(
+        ImmutableList.of(CurveParameterSize.of(name, nNodes)), MATRIX_ALGEBRA.getInverse(sensi));
+  }
+
+  // ∂ZHRates/∂Rates
+  private JacobianCalibrationMatrix hazardRateBySwapRateCalibrationMatrix(StandardId legalEntityId,
+      Currency currency,
+      LocalDate valuationDate,
+      NodalCurve nodalCurve,
+      ImmutableCreditRatesProvider ratesProvider,
+      CdsQuoteConvention quoteConvention,
+      CurveName name,
+      int nNodes,
+      ReferenceData refData,
+      double[][] diag,
+      ImmutableList<ResolvedCdsTrade> trades) {
+    LegalEntitySurvivalProbabilities creditCurve = LegalEntitySurvivalProbabilities.of(
+        legalEntityId, IsdaCreditDiscountFactors.of(currency, valuationDate, nodalCurve));
+    ImmutableCreditRatesProvider ratesProviderNew = ratesProvider.toBuilder()
+        .creditCurves(ImmutableMap.of(Pair.of(legalEntityId, currency), creditCurve))
+        .build();
+    Function<ResolvedCdsTrade, DoubleArray> sensiFunc = quoteConvention.equals(CdsQuoteConvention.PAR_SPREAD) ?
+        getParSpreadSensitivityFunction(ratesProviderNew, name, currency, refData) :
+        getPointsUpfrontSensitivityFunction(ratesProviderNew, name, currency, refData);
+    DoubleMatrix sensi = DoubleMatrix.ofArrayObjects(nNodes, nNodes, i -> sensiFunc.apply(trades.get(i)));
+    sensi = (DoubleMatrix) MATRIX_ALGEBRA.multiply(DoubleMatrix.ofUnsafe(diag), sensi);
+    return JacobianCalibrationMatrix.of(
+        ImmutableList.of(CurveParameterSize.of(name, nNodes)), MATRIX_ALGEBRA.getInverse(sensi));
+  }
+
   private double[] getStandardQuoteForm(ResolvedCdsTrade calibrationCds, CdsQuote marketQuote, LocalDate valuationDate,
       CreditDiscountFactors discountFactors, RecoveryRates recoveryRates, boolean computeJacobian, ReferenceData refData) {
 
@@ -273,109 +396,5 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
       }
     };
     return func;
-  }
-
-  // original OG jacobian calculation (use this for testing)
-  private NodalCurve ogJacobianCalculation(StandardId legalEntityId,
-      Currency currency,
-      LocalDate valuationDate,
-      NodalCurve nodalCurve,
-      ImmutableCreditRatesProvider ratesProvider,
-      CdsQuoteConvention quoteConvention,
-      CurveName name,
-      int nNodes,
-      ReferenceData refData,
-      double[][] diag,
-      ImmutableList<ResolvedCdsTrade> trades) {
-    JacobianCalibrationMatrix jacobian = hazardRateByCreditRateCalibrationMatrix(legalEntityId,
-        currency,
-        valuationDate,
-        nodalCurve,
-        ratesProvider,
-        quoteConvention,
-        name,
-        nNodes,
-        refData,
-        diag,
-        trades);
-    return nodalCurve.withMetadata(nodalCurve.getMetadata().withInfo(CurveInfoType.JACOBIAN, jacobian));
-  }
-
-  /**
-   * Jacobians generated: (1) ∂ZHRates/∂CreditRates (2) ∂ZHRates/∂Rates
-   *      -> ∂ZHRates/∂Rates = ∂ZHRates/∂ZCRates * ∂ZCRates/∂Rates
-   *      -> ∂ZHRates/∂ZCRates = - ∂F/ZCRates * [∂F/∂ZHRates]^-1     (implict function theorem)
-   *         where F(ZCRates,ZHRates) is a vector-valued function that returns the value of CDS trades
-   *   the process by which ∂ZHRates/∂ZCRates is constructed is as follows:
-   *      -> initialise m-n matrix (m = number of trades, n = number of nodes in discount curve)
-   *          -> for each ZCRate, bump and revalue each trade, and produce matrix => M1
-   *      -> initialise m-n matrix (m = number of trades, n = number of nodes in credit curve)
-   *          -> for each ZHRate, bump and revalue each trade, and produce matrix
-   *          -> invert matrix => M2
-   *      -> ∂ZHRates/∂ZCRates = -M1 * M2
-   *   the jacobian matrix of ∂ZHRates/∂Rates is then generated via ∂ZHRates/∂ZCRates * ∂ZCRates/∂ZRates
-   *      where ∂ZCRates/∂ZRates is extracted from the previously calibrated discount curve
-   * @param legalEntityId
-   * @param currency
-   * @param valuationDate
-   * @param nodalCurve
-   * @param ratesProvider
-   * @param quoteConvention
-   * @param name
-   * @param nNodes
-   * @param refData
-   * @param diag
-   * @param trades
-   * @return
-   */
-  private NodalCurve xplJacobianCalculation(StandardId legalEntityId,
-      Currency currency,
-      LocalDate valuationDate,
-      NodalCurve nodalCurve,
-      ImmutableCreditRatesProvider ratesProvider,
-      CdsQuoteConvention quoteConvention,
-      CurveName name,
-      int nNodes,
-      ReferenceData refData,
-      double[][] diag,
-      ImmutableList<ResolvedCdsTrade> trades) {
-    JacobianCalibrationMatrix dZhrDCrJacobian = hazardRateByCreditRateCalibrationMatrix(legalEntityId,
-        currency,
-        valuationDate,
-        nodalCurve,
-        ratesProvider,
-        quoteConvention,
-        name,
-        nNodes,
-        refData,
-        diag,
-        trades);
-    return nodalCurve.withMetadata(nodalCurve.getMetadata().withInfo(CurveInfoType.JACOBIAN, dZhrDCrJacobian));
-  }
-
-  // ∂ZHRates/∂CreditRates
-  private JacobianCalibrationMatrix hazardRateByCreditRateCalibrationMatrix(StandardId legalEntityId,
-      Currency currency,
-      LocalDate valuationDate,
-      NodalCurve nodalCurve,
-      ImmutableCreditRatesProvider ratesProvider,
-      CdsQuoteConvention quoteConvention,
-      CurveName name,
-      int nNodes,
-      ReferenceData refData,
-      double[][] diag,
-      ImmutableList<ResolvedCdsTrade> trades) {
-    LegalEntitySurvivalProbabilities creditCurve = LegalEntitySurvivalProbabilities.of(
-        legalEntityId, IsdaCreditDiscountFactors.of(currency, valuationDate, nodalCurve));
-    ImmutableCreditRatesProvider ratesProviderNew = ratesProvider.toBuilder()
-        .creditCurves(ImmutableMap.of(Pair.of(legalEntityId, currency), creditCurve))
-        .build();
-    Function<ResolvedCdsTrade, DoubleArray> sensiFunc = quoteConvention.equals(CdsQuoteConvention.PAR_SPREAD) ?
-        getParSpreadSensitivityFunction(ratesProviderNew, name, currency, refData) :
-        getPointsUpfrontSensitivityFunction(ratesProviderNew, name, currency, refData);
-    DoubleMatrix sensi = DoubleMatrix.ofArrayObjects(nNodes, nNodes, i -> sensiFunc.apply(trades.get(i)));
-    sensi = (DoubleMatrix) MATRIX_ALGEBRA.multiply(DoubleMatrix.ofUnsafe(diag), sensi);
-    return JacobianCalibrationMatrix.of(
-        ImmutableList.of(CurveParameterSize.of(name, nNodes)), MATRIX_ALGEBRA.getInverse(sensi));
   }
 }

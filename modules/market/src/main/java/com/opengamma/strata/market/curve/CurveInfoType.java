@@ -24,7 +24,7 @@ import com.opengamma.strata.collect.array.DoubleArray;
  * <pre>
  *  public static final CurveInfoType&lt;String&gt; OWNER = CurveInfoType.of("Owner");
  * </pre>
- * 
+ *
  * @param <T>  the type of the associated value
  */
 public final class CurveInfoType<T>
@@ -39,11 +39,15 @@ public final class CurveInfoType<T>
    */
   public static final CurveInfoType<JacobianCalibrationMatrix> JACOBIAN = CurveInfoType.of("Jacobian");
   /**
+   * Key used to access information about a second {@link JacobianCalibrationMatrix}.
+   */
+  public static final CurveInfoType<JacobianCalibrationMatrix> JACOBIAN_2 = CurveInfoType.of("Jacobian2");
+  /**
    * Key used to access information about the number of compounding per year, as an {@link Integer}.
    */
   public static final CurveInfoType<Integer> COMPOUNDING_PER_YEAR = CurveInfoType.of("CompoundingPerYear");
   /**
-   * Key used to access information about the present value sensitivity to market quote, 
+   * Key used to access information about the present value sensitivity to market quote,
    * represented by a {@link DoubleArray}.
    */
   public static final CurveInfoType<DoubleArray> PV_SENSITIVITY_TO_MARKET_QUOTE =
@@ -73,7 +77,7 @@ public final class CurveInfoType<T>
 
   /**
    * Creates an instance.
-   * 
+   *
    * @param name  the name
    */
   private CurveInfoType(String name) {
