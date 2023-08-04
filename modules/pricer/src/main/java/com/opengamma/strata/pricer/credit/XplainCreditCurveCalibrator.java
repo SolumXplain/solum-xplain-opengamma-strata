@@ -164,20 +164,18 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     if (computeJacobian) {
-      // implementation here
-      LegalEntitySurvivalProbabilities creditCurve = LegalEntitySurvivalProbabilities.of(
-          legalEntityId, IsdaCreditDiscountFactors.of(currency, valuationDate, nodalCurve));
-      ImmutableCreditRatesProvider ratesProviderNew = ratesProvider.toBuilder()
-          .creditCurves(ImmutableMap.of(Pair.of(legalEntityId, currency), creditCurve))
-          .build();
-      Function<ResolvedCdsTrade, DoubleArray> sensiFunc = quoteConvention.equals(CdsQuoteConvention.PAR_SPREAD) ?
-          getParSpreadSensitivityFunction(ratesProviderNew, name, currency, refData) :
-          getPointsUpfrontSensitivityFunction(ratesProviderNew, name, currency, refData);
-      DoubleMatrix sensi = DoubleMatrix.ofArrayObjects(nNodes, nNodes, i -> sensiFunc.apply(trades.get(i)));
-      sensi = (DoubleMatrix) MATRIX_ALGEBRA.multiply(DoubleMatrix.ofUnsafe(diag), sensi);
-      JacobianCalibrationMatrix jacobian = JacobianCalibrationMatrix.of(
-          ImmutableList.of(CurveParameterSize.of(name, nNodes)), MATRIX_ALGEBRA.getInverse(sensi));
-      nodalCurve = nodalCurve.withMetadata(nodalCurve.getMetadata().withInfo(CurveInfoType.JACOBIAN, jacobian));
+      nodalCurve = ogJacobianCalculation(
+          legalEntityId,
+          currency,
+          valuationDate,
+          nodalCurve,
+          ratesProvider,
+          quoteConvention,
+          name,
+          nNodes,
+          refData,
+          diag,
+          trades);
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -300,8 +298,31 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
     return func;
   }
 
-  private void originalJacobianCalculation(StandardId legalEntityId, Currency currency, LocalDate valuationDate, NodalCurve nodalCurve, RatesProvider ratesProvider) {
-
+  // original OG jacobian calculation (use this for testing)
+  private NodalCurve ogJacobianCalculation(StandardId legalEntityId,
+      Currency currency,
+      LocalDate valuationDate,
+      NodalCurve nodalCurve,
+      ImmutableCreditRatesProvider ratesProvider,
+      CdsQuoteConvention quoteConvention,
+      CurveName name,
+      int nNodes,
+      ReferenceData refData,
+      double[][] diag,
+      ImmutableList<ResolvedCdsTrade> trades) {
+    LegalEntitySurvivalProbabilities creditCurve = LegalEntitySurvivalProbabilities.of(
+        legalEntityId, IsdaCreditDiscountFactors.of(currency, valuationDate, nodalCurve));
+    ImmutableCreditRatesProvider ratesProviderNew = ratesProvider.toBuilder()
+        .creditCurves(ImmutableMap.of(Pair.of(legalEntityId, currency), creditCurve))
+        .build();
+    Function<ResolvedCdsTrade, DoubleArray> sensiFunc = quoteConvention.equals(CdsQuoteConvention.PAR_SPREAD) ?
+        getParSpreadSensitivityFunction(ratesProviderNew, name, currency, refData) :
+        getPointsUpfrontSensitivityFunction(ratesProviderNew, name, currency, refData);
+    DoubleMatrix sensi = DoubleMatrix.ofArrayObjects(nNodes, nNodes, i -> sensiFunc.apply(trades.get(i)));
+    sensi = (DoubleMatrix) MATRIX_ALGEBRA.multiply(DoubleMatrix.ofUnsafe(diag), sensi);
+    JacobianCalibrationMatrix jacobian = JacobianCalibrationMatrix.of(
+        ImmutableList.of(CurveParameterSize.of(name, nNodes)), MATRIX_ALGEBRA.getInverse(sensi));
+    return nodalCurve.withMetadata(nodalCurve.getMetadata().withInfo(CurveInfoType.JACOBIAN, jacobian));
   }
 
 }
