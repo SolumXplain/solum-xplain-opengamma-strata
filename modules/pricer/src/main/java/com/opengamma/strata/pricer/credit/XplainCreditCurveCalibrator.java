@@ -10,16 +10,23 @@ import com.opengamma.strata.basics.date.DayCount;
 import com.opengamma.strata.collect.ArgChecker;
 import com.opengamma.strata.collect.Guavate;
 import com.opengamma.strata.collect.array.DoubleArray;
+import com.opengamma.strata.collect.array.DoubleMatrix;
 import com.opengamma.strata.collect.tuple.Pair;
 import com.opengamma.strata.data.MarketData;
+import com.opengamma.strata.market.curve.CurveInfoType;
 import com.opengamma.strata.market.curve.CurveName;
-import com.opengamma.strata.market.curve.IsdaCreditCurveDefinition;
+import com.opengamma.strata.market.curve.CurveParameterSize;
+import com.opengamma.strata.market.curve.JacobianCalibrationMatrix;
 import com.opengamma.strata.market.curve.NodalCurve;
 import com.opengamma.strata.market.curve.node.CdsIsdaCreditCurveNode;
 import com.opengamma.strata.market.param.CurrencyParameterSensitivities;
 import com.opengamma.strata.market.param.ParameterMetadata;
 import com.opengamma.strata.market.param.ResolvedTradeParameterMetadata;
+import com.opengamma.strata.market.sensitivity.PointSensitivities;
+import com.opengamma.strata.math.impl.matrix.CommonsMatrixAlgebra;
+import com.opengamma.strata.math.impl.matrix.MatrixAlgebra;
 import com.opengamma.strata.pricer.common.PriceType;
+import com.opengamma.strata.pricer.rate.RatesProvider;
 import com.opengamma.strata.product.credit.CdsCalibrationTrade;
 import com.opengamma.strata.product.credit.CdsQuote;
 import com.opengamma.strata.product.credit.ResolvedCdsTrade;
@@ -29,23 +36,32 @@ import com.opengamma.strata.product.credit.type.CdsQuoteConvention;
 import java.time.LocalDate;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class XplainIsdaCompliantCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibrator {
+public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibrator {
+
+  private static final ArbitrageHandling DEFAULT_ARBITRAGE_HANDLING = ArbitrageHandling.IGNORE;
+  private static final AccrualOnDefaultFormula DEFAULT_FORMULA = AccrualOnDefaultFormula.ORIGINAL_ISDA;
+  private static final MatrixAlgebra MATRIX_ALGEBRA = new CommonsMatrixAlgebra();
 
   private final IsdaCdsTradePricer tradePricer;
+  private final ArbitrageHandling arbHandling;
+  private final AccrualOnDefaultFormula formula;
 
-  public XplainIsdaCompliantCreditCurveCalibrator(AccrualOnDefaultFormula formula,
-      IsdaCdsTradePricer tradePricer) {
-    super(formula);
-    this.tradePricer = tradePricer;
+  protected XplainCreditCurveCalibrator() {
+    this(DEFAULT_FORMULA, DEFAULT_ARBITRAGE_HANDLING);
   }
 
-  public XplainIsdaCompliantCreditCurveCalibrator(AccrualOnDefaultFormula formula,
-      ArbitrageHandling arbHandling, IsdaCdsTradePricer tradePricer) {
-    super(formula, arbHandling);
-    this.tradePricer = tradePricer;
+  public XplainCreditCurveCalibrator(AccrualOnDefaultFormula formula) {
+    this(formula, DEFAULT_ARBITRAGE_HANDLING);
+  }
+
+  public XplainCreditCurveCalibrator(AccrualOnDefaultFormula formula, ArbitrageHandling arbHandling) {
+    this.arbHandling = ArgChecker.notNull(arbHandling, "arbHandling");
+    this.formula = ArgChecker.notNull(formula, "formula");
+    this.tradePricer = new IsdaCdsTradePricer(formula);
   }
 
   /**
@@ -149,7 +165,19 @@ public class XplainIsdaCompliantCreditCurveCalibrator extends IsdaCompliantCredi
 
     if (computeJacobian) {
       // implementation here
-      System.out.println("Computing jacobians...");
+      LegalEntitySurvivalProbabilities creditCurve = LegalEntitySurvivalProbabilities.of(
+          legalEntityId, IsdaCreditDiscountFactors.of(currency, valuationDate, nodalCurve));
+      ImmutableCreditRatesProvider ratesProviderNew = ratesProvider.toBuilder()
+          .creditCurves(ImmutableMap.of(Pair.of(legalEntityId, currency), creditCurve))
+          .build();
+      Function<ResolvedCdsTrade, DoubleArray> sensiFunc = quoteConvention.equals(CdsQuoteConvention.PAR_SPREAD) ?
+          getParSpreadSensitivityFunction(ratesProviderNew, name, currency, refData) :
+          getPointsUpfrontSensitivityFunction(ratesProviderNew, name, currency, refData);
+      DoubleMatrix sensi = DoubleMatrix.ofArrayObjects(nNodes, nNodes, i -> sensiFunc.apply(trades.get(i)));
+      sensi = (DoubleMatrix) MATRIX_ALGEBRA.multiply(DoubleMatrix.ofUnsafe(diag), sensi);
+      JacobianCalibrationMatrix jacobian = JacobianCalibrationMatrix.of(
+          ImmutableList.of(CurveParameterSize.of(name, nNodes)), MATRIX_ALGEBRA.getInverse(sensi));
+      nodalCurve = nodalCurve.withMetadata(nodalCurve.getMetadata().withInfo(CurveInfoType.JACOBIAN, jacobian));
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -175,8 +203,7 @@ public class XplainIsdaCompliantCreditCurveCalibrator extends IsdaCompliantCredi
   public NodalCurve calibrate(List<ResolvedCdsTrade> calibrationCDSs, DoubleArray flactionalSpreads,
       DoubleArray pointsUpfront, CurveName name, LocalDate valuationDate,
       CreditDiscountFactors discountFactors, RecoveryRates recoveryRates, ReferenceData refData) {
-    // TODO: review calibrator options
-    return FastCreditCurveCalibrator.standard().calibrate(
+    return new FastCreditCurveCalibrator(formula, arbHandling).calibrate(
         calibrationCDSs,
         flactionalSpreads,
         pointsUpfront,
@@ -241,5 +268,40 @@ public class XplainIsdaCompliantCreditCurveCalibrator extends IsdaCompliantCredi
     return res;
   }
 
+  private Function<ResolvedCdsTrade, DoubleArray> getParSpreadSensitivityFunction(
+      CreditRatesProvider ratesProvider,
+      CurveName curveName,
+      Currency currency,
+      ReferenceData refData) {
+
+    Function<ResolvedCdsTrade, DoubleArray> func = new Function<ResolvedCdsTrade, DoubleArray>() {
+      @Override
+      public DoubleArray apply(ResolvedCdsTrade trade) {
+        PointSensitivities point = tradePricer.parSpreadSensitivity(trade, ratesProvider, refData);
+        return ratesProvider.parameterSensitivity(point).getSensitivity(curveName, currency).getSensitivity();
+      }
+    };
+    return func;
+  }
+
+  private Function<ResolvedCdsTrade, DoubleArray> getPointsUpfrontSensitivityFunction(
+      CreditRatesProvider ratesProvider,
+      CurveName curveName,
+      Currency currency,
+      ReferenceData refData) {
+
+    Function<ResolvedCdsTrade, DoubleArray> func = new Function<ResolvedCdsTrade, DoubleArray>() {
+      @Override
+      public DoubleArray apply(ResolvedCdsTrade trade) {
+        PointSensitivities point = tradePricer.priceSensitivity(trade, ratesProvider, refData);
+        return ratesProvider.parameterSensitivity(point).getSensitivity(curveName, currency).getSensitivity();
+      }
+    };
+    return func;
+  }
+
+  private void originalJacobianCalculation(StandardId legalEntityId, Currency currency, LocalDate valuationDate, NodalCurve nodalCurve, RatesProvider ratesProvider) {
+
+  }
 
 }
