@@ -3,6 +3,7 @@ package com.opengamma.strata.pricer.credit;
 import java.time.LocalDate;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -317,17 +318,20 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
 
     // extract discount curve
     // TODO: add safety check
-    IsdaCreditDiscountFactors discountFactors = ((IsdaCreditDiscountFactors) ratesProvider.discountFactors(currency));
     NodalCurve discountCurve = ((IsdaCreditDiscountFactors) ratesProvider.discountFactors(currency)).getCurve();
 
     // extract discount curve ZC rates
     DoubleArray discountCurveZcRates = discountCurve.getYValues();
 
+    // extract credit curve ZH rates
+    DoubleArray creditCurveZhRates = nodalCurve.getYValues();
 
     // generate M1
     DoubleMatrix m1Matrix = generateM1Matrix(trades, currency, ratesProviderNew, discountCurveZcRates, refData);
 
     // generate M2
+    DoubleMatrix m2Matrix = generateM2Matrix(trades, legalEntityId, nodalCurve, currency, ratesProviderNew, creditCurveZhRates, refData);
+
 
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -345,26 +349,60 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
   // ∂F/dZCRates
   // -> when we revalue each trade by shifting ZC value, the element in the matrix will show the change in pv
   // -> i.e., PV(shifted) - PV(unshifted) => PV(shifted) - 0 => PV(shifted)
+  // matrix of dimensions m-n, where m = number of trades, n = number of nodes in discount curve
   private DoubleMatrix generateM1Matrix(ImmutableList<ResolvedCdsTrade> trades, Currency currency, ImmutableCreditRatesProvider creditRatesProvider, DoubleArray discountCurveZcRates, ReferenceData referenceData) {
     int nDiscountCurveNodes = discountCurveZcRates.size();
 
     Function<ResolvedCdsTrade, DoubleArray> nodeZcTradePvSensitivityFunction =
-        resolvedCdsTrade -> shiftedPvDeltasForTrade(creditRatesProvider, resolvedCdsTrade, currency, referenceData);
+        resolvedCdsTrade -> shiftedPvDeltasForTradeZeroCoupon(creditRatesProvider, discountCurveZcRates, resolvedCdsTrade, currency, referenceData);
 
     return DoubleMatrix.ofArrayObjects(trades.size(), nDiscountCurveNodes, i -> nodeZcTradePvSensitivityFunction.apply(trades.get(i)));
+  }
+
+  // [∂F/dZHRates]^-1
+  // -> when we revalue each trade by shifting ZH rate, the element in the matrix will show the change in pv
+  // -> i.e., PV(shifted) - PV(unshifted) => PV(shifted) - 0 => PV(shifted)
+  // matrix of dimensions m-n, where m = number of trades, n = number of nodes in credit curve
+  private DoubleMatrix generateM2Matrix(ImmutableList<ResolvedCdsTrade> trades, StandardId legalEntityId, NodalCurve creditCurve, Currency currency, ImmutableCreditRatesProvider creditRatesProvider, DoubleArray creditCurveZhRates, ReferenceData referenceData) {
+    int nCreditCurveNodes = creditCurveZhRates.size();
+
+    Function<ResolvedCdsTrade, DoubleArray> nodeZhTradePvSensitivityFunction =
+        resolvedCdsTrade -> shiftedPvDeltasForTradeZeroHazard(creditRatesProvider, legalEntityId, creditCurve, creditCurveZhRates, resolvedCdsTrade, currency, referenceData);
+
+    DoubleMatrix doubleMatrix = DoubleMatrix.ofArrayObjects(trades.size(), nCreditCurveNodes, i -> nodeZhTradePvSensitivityFunction.apply(trades.get(i)));
+    return MATRIX_ALGEBRA.getInverse(doubleMatrix);
   }
 
   /**
    *
    * @return array where each element represents trade's PV sensitivity to a ZC rate in curve
    */
-    private DoubleArray shiftedPvDeltasForTrade(ImmutableCreditRatesProvider creditRatesProvider, ResolvedCdsTrade cdsTrade, Currency currency, ReferenceData referenceData) {
-      IsdaCreditDiscountFactors creditDiscountFactors = (IsdaCreditDiscountFactors) creditRatesProvider.discountFactors(currency);
-      NodalCurve discountCurve = creditDiscountFactors.getCurve();
-      DoubleArray discountCurveZcRates = discountCurve.getYValues();
+    private DoubleArray shiftedPvDeltasForTradeZeroCoupon(ImmutableCreditRatesProvider creditRatesProvider, DoubleArray discountCurveZcRates, ResolvedCdsTrade cdsTrade, Currency currency, ReferenceData referenceData) {
       return DoubleArray.of(discountCurveZcRates.size(), (int index) ->
-          getZcShiftPriceDelta(cdsTrade, currency, creditRatesProvider, shiftedDiscountCurveZcRates(discountCurveZcRates, index), referenceData));
+          getZcShiftPriceDelta(cdsTrade, currency, creditRatesProvider, shiftedRates(discountCurveZcRates, index), referenceData));
     }
+
+  /**
+   *
+   * @return array where each element represents trade's PV sensitivity to a ZH rate in curve
+   */
+  private DoubleArray shiftedPvDeltasForTradeZeroHazard(ImmutableCreditRatesProvider creditRatesProvider, StandardId legalEntityId, NodalCurve creditCurve, DoubleArray creditCurveZhRates, ResolvedCdsTrade cdsTrade, Currency currency, ReferenceData referenceData) {
+    return DoubleArray.of(creditCurveZhRates.size(), (int index) ->
+        getZhShiftPriceDelta(cdsTrade, legalEntityId, currency, creditCurve, creditRatesProvider, shiftedRates(creditCurveZhRates, index), referenceData));
+  }
+
+  /**
+   *
+   * @return PV delta for a trade when a given ZH value is shifted
+   */
+  // TODO: review CLEAN price
+  // TODO: it seems price before shift is not 0, so for now, need to look at price before - price after shifting a ZC value
+  private double getZhShiftPriceDelta(ResolvedCdsTrade trade, StandardId legalEntityId, Currency currency, NodalCurve creditCurve, ImmutableCreditRatesProvider creditRatesProvider, DoubleArray shiftedDiscountCurveZcRates, ReferenceData referenceData) {
+    double unshiftedPrice = tradePricer.price(trade, creditRatesProvider, PriceType.CLEAN, referenceData);
+    ImmutableCreditRatesProvider ratesProviderWithShiftedZcValue = ratesProviderWithShiftedZhValue(currency, legalEntityId, creditCurve, creditRatesProvider, shiftedDiscountCurveZcRates);
+    double shiftedPrice = tradePricer.price(trade, ratesProviderWithShiftedZcValue, PriceType.CLEAN, referenceData);
+    return shiftedPrice - unshiftedPrice;
+  }
 
   /**
    *
@@ -381,12 +419,12 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
 
   /**
    *
-   * @param discountCurveZcRates unshifted ZC rates from a curve
+   * @param originalRates unshifted rates from a curve (e.g., ZeroCouponRates, ZeroHazardRates)
    * @param index the index of the rate we want to shift
-   * @return input ZC rates where element at index is shifted by 1 basis point
+   * @return input rates where element at index is shifted by 1 basis point
    */
-  private DoubleArray shiftedDiscountCurveZcRates(DoubleArray discountCurveZcRates, int index) {
-    return discountCurveZcRates.with(index, discountCurveZcRates.get(index) + ONE_BP);
+  private DoubleArray shiftedRates(DoubleArray originalRates, int index) {
+    return originalRates.with(index, originalRates.get(index) + ONE_BP);
   }
 
   /**
@@ -404,12 +442,30 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
     NodalCurve shiftedDiscountCurve = discountCurve.withYValues(shiftedCurveZcRates);
 
     // override discount curve in rates provider
-    // TODO: what if more than one currency in existing map? needs to be a cleaner way of doing this!
+    // TODO: what if more than one currency in existing map?
     IsdaCreditDiscountFactors newCreditDiscountFactors = IsdaCreditDiscountFactors.of(currency, creditDiscountFactors.getValuationDate(), shiftedDiscountCurve);
     ImmutableMap<Currency, CreditDiscountFactors> newDiscountCurvesMap = ImmutableMap.of(currency, newCreditDiscountFactors);
     return creditRatesProvider.toBuilder().discountCurves(newDiscountCurvesMap).build();
   }
 
+  /**
+   *
+   * @param currency calibration currency
+   * @param creditRatesProvider original rates provider, holds curves and their respective x and y values
+   * @param shiftedCurveZhRates array of zh rates, where one has been shifted
+   * @return rates provider with overridden y values for discount curve(s)
+   */
+  private ImmutableCreditRatesProvider ratesProviderWithShiftedZhValue(Currency currency, StandardId legalEntityId, NodalCurve creditCurve, ImmutableCreditRatesProvider creditRatesProvider, DoubleArray shiftedCurveZhRates) {
+    // override credit curve y values
+    NodalCurve shiftedCreditCurve = creditCurve.withYValues(shiftedCurveZhRates);
+
+    // override discount curve in rates provider
+    // TODO: what if more than one currency in existing map?
+    IsdaCreditDiscountFactors newCreditDiscountFactors = IsdaCreditDiscountFactors.of(currency, creditRatesProvider.getValuationDate(), shiftedCreditCurve);
+    LegalEntitySurvivalProbabilities newLegalEntitySurvivalProbabilities = LegalEntitySurvivalProbabilities.of(legalEntityId, newCreditDiscountFactors);
+    ImmutableMap<Pair<StandardId, Currency>, LegalEntitySurvivalProbabilities> creditCurves = ImmutableMap.of(Pair.of(legalEntityId, currency), newLegalEntitySurvivalProbabilities);
+    return creditRatesProvider.toBuilder().creditCurves(creditCurves).build();
+  }
 
 
 
