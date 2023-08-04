@@ -1,6 +1,11 @@
 package com.opengamma.strata.pricer.credit;
 
-import static com.opengamma.strata.market.curve.CurveInfoType.JACOBIAN_2;
+import java.time.LocalDate;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableList.Builder;
@@ -28,25 +33,17 @@ import com.opengamma.strata.market.sensitivity.PointSensitivities;
 import com.opengamma.strata.math.impl.matrix.CommonsMatrixAlgebra;
 import com.opengamma.strata.math.impl.matrix.MatrixAlgebra;
 import com.opengamma.strata.pricer.common.PriceType;
-import com.opengamma.strata.pricer.rate.RatesProvider;
 import com.opengamma.strata.product.credit.CdsCalibrationTrade;
 import com.opengamma.strata.product.credit.CdsQuote;
 import com.opengamma.strata.product.credit.ResolvedCdsTrade;
-
 import com.opengamma.strata.product.credit.type.CdsQuoteConvention;
-
-import java.time.LocalDate;
-import java.util.Iterator;
-import java.util.List;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibrator {
 
   private static final ArbitrageHandling DEFAULT_ARBITRAGE_HANDLING = ArbitrageHandling.IGNORE;
   private static final AccrualOnDefaultFormula DEFAULT_FORMULA = AccrualOnDefaultFormula.ORIGINAL_ISDA;
   private static final MatrixAlgebra MATRIX_ALGEBRA = new CommonsMatrixAlgebra();
+  private static final double ONE_BP = 1.0e-4;
 
   private final IsdaCdsTradePricer tradePricer;
   private final ArbitrageHandling arbHandling;
@@ -219,18 +216,6 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
 
   /**
    * Jacobians generated: (1) ∂ZHRates/∂CreditRates (2) ∂ZHRates/∂Rates
-   *      -> ∂ZHRates/∂Rates = ∂ZHRates/∂ZCRates * ∂ZCRates/∂Rates
-   *      -> ∂ZHRates/∂ZCRates = - ∂F/ZCRates * [∂F/∂ZHRates]^-1     (implicit function theorem)
-   *         where F(ZCRates,ZHRates) is a vector-valued function that returns the value of CDS trades
-   *   the process by which ∂ZHRates/∂ZCRates is constructed is as follows:
-   *      -> initialise m-n matrix (m = number of trades, n = number of nodes in discount curve)
-   *          -> for each ZCRate, bump and revalue each trade, and produce matrix => M1
-   *      -> initialise m-n matrix (m = number of trades, n = number of nodes in credit curve)
-   *          -> for each ZHRate, bump and revalue each trade, and produce matrix
-   *          -> invert matrix => M2
-   *      -> ∂ZHRates/∂ZCRates = -M1 * M2
-   *   the jacobian matrix of ∂ZHRates/∂Rates is then generated via ∂ZHRates/∂ZCRates * ∂ZCRates/∂ZRates
-   *      where ∂ZCRates/∂ZRates is extracted from the previously calibrated discount curve
    * @param legalEntityId
    * @param currency
    * @param valuationDate
@@ -256,10 +241,14 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
       double[][] diag,
       ImmutableList<ResolvedCdsTrade> trades) {
 
+    // (1)
     JacobianCalibrationMatrix dZhrDCrJacobian = hazardRateByCreditRateCalibrationMatrix(legalEntityId, currency, valuationDate, nodalCurve, ratesProvider, quoteConvention, name, nNodes, refData, diag, trades);
-    JacobianCalibrationMatrix dZhrDCrJacobian2 = hazardRateBySwapRateCalibrationMatrix(legalEntityId, currency, valuationDate, nodalCurve, ratesProvider, quoteConvention, name, nNodes, refData, diag, trades);
     nodalCurve = nodalCurve.withMetadata(nodalCurve.getMetadata().withInfo(CurveInfoType.JACOBIAN, dZhrDCrJacobian));
+
+    // (2)
+    JacobianCalibrationMatrix dZhrDCrJacobian2 = hazardRateBySwapRateCalibrationMatrix(legalEntityId, currency, valuationDate, nodalCurve, ratesProvider, quoteConvention, name, nNodes, refData, diag, trades);
     nodalCurve = nodalCurve.withMetadata(nodalCurve.getMetadata().withInfo(CurveInfoType.JACOBIAN_2, dZhrDCrJacobian2));
+
     return nodalCurve;
   }
 
@@ -289,7 +278,22 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
         ImmutableList.of(CurveParameterSize.of(name, nNodes)), MATRIX_ALGEBRA.getInverse(sensi));
   }
 
-  // ∂ZHRates/∂Rates
+  /**
+   *   ∂ZHRates/∂Rates = ∂ZHRates/∂ZCRates * ∂ZCRates/∂Rates
+   *      -> ∂ZHRates/∂ZCRates = - ∂F/ZCRates * [∂F/∂ZHRates]^-1     (implicit function theorem)
+   *         where F(ZCRates,ZHRates) is a vector-valued function that returns the value of CDS trades
+   *   the process by which ∂ZHRates/∂ZCRates is constructed is as follows:
+   *      -> initialise m-n matrix (m = number of trades, n = number of nodes in discount curve)
+   *          -> for each ZCRate, bump and revalue each trade, and produce matrix => M1
+   *      -> initialise m-n matrix (m = number of trades, n = number of nodes in credit curve)
+   *          -> for each ZHRate, bump and revalue each trade, and produce matrix
+   *          -> invert matrix => M2
+   *      -> ∂ZHRates/∂ZCRates = -M1 * M2
+   *   the jacobian matrix of ∂ZHRates/∂Rates is then generated via ∂ZHRates/∂ZCRates * ∂ZCRates/∂ZRates
+   *      where ∂ZCRates/∂ZRates is extracted from the previously calibrated discount curve
+   *
+   * @return ∂ZHRates/∂Rates
+   */
   private JacobianCalibrationMatrix hazardRateBySwapRateCalibrationMatrix(StandardId legalEntityId,
       Currency currency,
       LocalDate valuationDate,
@@ -301,11 +305,34 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
       ReferenceData refData,
       double[][] diag,
       ImmutableList<ResolvedCdsTrade> trades) {
+
+    // OG
     LegalEntitySurvivalProbabilities creditCurve = LegalEntitySurvivalProbabilities.of(
         legalEntityId, IsdaCreditDiscountFactors.of(currency, valuationDate, nodalCurve));
+
+    // OG
     ImmutableCreditRatesProvider ratesProviderNew = ratesProvider.toBuilder()
         .creditCurves(ImmutableMap.of(Pair.of(legalEntityId, currency), creditCurve))
         .build();
+
+    // extract discount curve
+    // TODO: add safety check
+    IsdaCreditDiscountFactors discountFactors = ((IsdaCreditDiscountFactors) ratesProvider.discountFactors(currency));
+    NodalCurve discountCurve = ((IsdaCreditDiscountFactors) ratesProvider.discountFactors(currency)).getCurve();
+
+    // extract discount curve ZC rates
+    DoubleArray discountCurveZcRates = discountCurve.getYValues();
+
+
+    // generate M1
+    DoubleMatrix m1Matrix = generateM1Matrix(trades, currency, ratesProviderNew, discountCurveZcRates, refData);
+
+    // generate M2
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
     Function<ResolvedCdsTrade, DoubleArray> sensiFunc = quoteConvention.equals(CdsQuoteConvention.PAR_SPREAD) ?
         getParSpreadSensitivityFunction(ratesProviderNew, name, currency, refData) :
         getPointsUpfrontSensitivityFunction(ratesProviderNew, name, currency, refData);
@@ -314,6 +341,80 @@ public class XplainCreditCurveCalibrator extends IsdaCompliantCreditCurveCalibra
     return JacobianCalibrationMatrix.of(
         ImmutableList.of(CurveParameterSize.of(name, nNodes)), MATRIX_ALGEBRA.getInverse(sensi));
   }
+
+  // ∂F/dZCRates
+  // -> when we revalue each trade by shifting ZC value, the element in the matrix will show the change in pv
+  // -> i.e., PV(shifted) - PV(unshifted) => PV(shifted) - 0 => PV(shifted)
+  private DoubleMatrix generateM1Matrix(ImmutableList<ResolvedCdsTrade> trades, Currency currency, ImmutableCreditRatesProvider creditRatesProvider, DoubleArray discountCurveZcRates, ReferenceData referenceData) {
+    int nDiscountCurveNodes = discountCurveZcRates.size();
+
+    Function<ResolvedCdsTrade, DoubleArray> nodeZcTradePvSensitivityFunction =
+        resolvedCdsTrade -> shiftedPvDeltasForTrade(creditRatesProvider, resolvedCdsTrade, currency, referenceData);
+
+    return DoubleMatrix.ofArrayObjects(trades.size(), nDiscountCurveNodes, i -> nodeZcTradePvSensitivityFunction.apply(trades.get(i)));
+  }
+
+  /**
+   *
+   * @return array where each element represents trade's PV sensitivity to a ZC rate in curve
+   */
+    private DoubleArray shiftedPvDeltasForTrade(ImmutableCreditRatesProvider creditRatesProvider, ResolvedCdsTrade cdsTrade, Currency currency, ReferenceData referenceData) {
+      IsdaCreditDiscountFactors creditDiscountFactors = (IsdaCreditDiscountFactors) creditRatesProvider.discountFactors(currency);
+      NodalCurve discountCurve = creditDiscountFactors.getCurve();
+      DoubleArray discountCurveZcRates = discountCurve.getYValues();
+      return DoubleArray.of(discountCurveZcRates.size(), (int index) ->
+          getZcShiftPriceDelta(cdsTrade, currency, creditRatesProvider, shiftedDiscountCurveZcRates(discountCurveZcRates, index), referenceData));
+    }
+
+  /**
+   *
+   * @return PV delta for a trade when a given ZC value is shifted
+   */
+  // TODO: review CLEAN price
+  // TODO: it seems price before shift is not 0, so for now, need to look at price before - price after shifting a ZC value
+  private double getZcShiftPriceDelta(ResolvedCdsTrade trade, Currency currency, ImmutableCreditRatesProvider creditRatesProvider, DoubleArray shiftedDiscountCurveZcRates, ReferenceData referenceData) {
+    double unshiftedPrice = tradePricer.price(trade, creditRatesProvider, PriceType.CLEAN, referenceData);
+    ImmutableCreditRatesProvider ratesProviderWithShiftedZcValue = ratesProviderWithShiftedZcValue(currency, creditRatesProvider, shiftedDiscountCurveZcRates);
+    double shiftedPrice = tradePricer.price(trade, ratesProviderWithShiftedZcValue, PriceType.CLEAN, referenceData);
+    return shiftedPrice - unshiftedPrice;
+  }
+
+  /**
+   *
+   * @param discountCurveZcRates unshifted ZC rates from a curve
+   * @param index the index of the rate we want to shift
+   * @return input ZC rates where element at index is shifted by 1 basis point
+   */
+  private DoubleArray shiftedDiscountCurveZcRates(DoubleArray discountCurveZcRates, int index) {
+    return discountCurveZcRates.with(index, discountCurveZcRates.get(index) + ONE_BP);
+  }
+
+  /**
+   *
+   * @param currency calibration currency
+   * @param creditRatesProvider original rates provider, holds curves and their respective x and y values
+   * @param shiftedCurveZcRates array of zc rates, where one has been shifted
+   * @return rates provider with overridden y values for discount curve(s)
+   */
+  private ImmutableCreditRatesProvider ratesProviderWithShiftedZcValue(Currency currency, ImmutableCreditRatesProvider creditRatesProvider, DoubleArray shiftedCurveZcRates) {
+    IsdaCreditDiscountFactors creditDiscountFactors = (IsdaCreditDiscountFactors) creditRatesProvider.discountFactors(currency);
+    NodalCurve discountCurve = creditDiscountFactors.getCurve();
+
+    // override discount curve y values
+    NodalCurve shiftedDiscountCurve = discountCurve.withYValues(shiftedCurveZcRates);
+
+    // override discount curve in rates provider
+    // TODO: what if more than one currency in existing map? needs to be a cleaner way of doing this!
+    IsdaCreditDiscountFactors newCreditDiscountFactors = IsdaCreditDiscountFactors.of(currency, creditDiscountFactors.getValuationDate(), shiftedDiscountCurve);
+    ImmutableMap<Currency, CreditDiscountFactors> newDiscountCurvesMap = ImmutableMap.of(currency, newCreditDiscountFactors);
+    return creditRatesProvider.toBuilder().discountCurves(newDiscountCurvesMap).build();
+  }
+
+
+
+
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   private double[] getStandardQuoteForm(ResolvedCdsTrade calibrationCds, CdsQuote marketQuote, LocalDate valuationDate,
       CreditDiscountFactors discountFactors, RecoveryRates recoveryRates, boolean computeJacobian, ReferenceData refData) {
