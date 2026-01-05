@@ -118,6 +118,42 @@ public class DiscountingFxCollarProductPricer {
   }
 
   /**
+   * Calculates the present value delta of the first option of the foreign exchange collar product.
+   * <p>
+   * The present value delta is the first derivative of {@link #presentValue} with respect to spot.
+   *
+   * @param collar  the collar product
+   * @param provider  the rates provider
+   * @param volatilities  the Black volatility provider
+   * @return the present value delta of the product
+   */
+  public CurrencyAmount presentValueDeltaOption1(
+      ResolvedFxCollar collar,
+      RatesProvider provider,
+      BlackFxOptionVolatilities volatilities) {
+
+    return fxPricer.presentValueDelta(collar.getOption1(), provider, volatilities);
+  }
+
+  /**
+   * Calculates the present value delta of the second option of the foreign exchange collar product.
+   * <p>
+   * The present value delta is the first derivative of {@link #presentValue} with respect to spot.
+   *
+   * @param collar  the collar product
+   * @param provider  the rates provider
+   * @param volatilities  the Black volatility provider
+   * @return the present value delta of the product
+   */
+  public CurrencyAmount presentValueDeltaOption2(
+      ResolvedFxCollar collar,
+      RatesProvider provider,
+      BlackFxOptionVolatilities volatilities) {
+
+    return fxPricer.presentValueDelta(collar.getOption2(), provider, volatilities);
+  }
+
+  /**
    * Calculates the present value sensitivity of the foreign exchange collar product.
    * <p>
    * The present value sensitivity of the product is the sensitivity of {@link #presentValue} to
@@ -219,6 +255,42 @@ public class DiscountingFxCollarProductPricer {
   }
 
   /**
+   * Calculates the present value vega of the first option of the foreign exchange collar product.
+   * <p>
+   * The present value vega is the first derivative of the {@link #presentValue} with respect to volatility.
+   *
+   * @param collar  the option product
+   * @param provider  the rates provider
+   * @param volatilities  the Black volatility provider
+   * @return the present value vega of the product
+   */
+  public CurrencyAmount presentValueVegaOption1(
+      ResolvedFxCollar collar,
+      RatesProvider provider,
+      BlackFxOptionVolatilities volatilities) {
+
+    return fxPricer.presentValueVega(collar.getOption1(), provider, volatilities);
+  }
+
+  /**
+   * Calculates the present value vega of the second option of the foreign exchange collar product.
+   * <p>
+   * The present value vega is the first derivative of the {@link #presentValue} with respect to volatility.
+   *
+   * @param collar  the option product
+   * @param provider  the rates provider
+   * @param volatilities  the Black volatility provider
+   * @return the present value vega of the product
+   */
+  public CurrencyAmount presentValueVegaOption2(
+      ResolvedFxCollar collar,
+      RatesProvider provider,
+      BlackFxOptionVolatilities volatilities) {
+
+    return fxPricer.presentValueVega(collar.getOption2(), provider, volatilities);
+  }
+
+  /**
    * Computes the present value sensitivity to the black volatility used in the pricing.
    * <p>
    * The result is a single sensitivity to the volatility used.
@@ -290,7 +362,7 @@ public class DiscountingFxCollarProductPricer {
   }
 
   /**
-   * Calculates the implied Black volatility of the foreign exchange collar product.
+   * Calculates the implied Black volatility of the first option of the foreign exchange collar product.
    *
    * @param collar  the option product
    * @param provider  the rates provider
@@ -303,6 +375,22 @@ public class DiscountingFxCollarProductPricer {
       RatesProvider provider,
       BlackFxOptionVolatilities volatilities) {
     return fxPricer.impliedVolatility(collar.getOption1(), provider, volatilities);
+  }
+
+  /**
+   * Calculates the implied Black volatility of the first option of the foreign exchange collar product.
+   *
+   * @param collar  the option product
+   * @param provider  the rates provider
+   * @param volatilities  the Black volatility provider
+   * @return the implied volatility of the product
+   * @throws IllegalArgumentException if the option has expired
+   */
+  public double otherImpliedVolatility(
+      ResolvedFxCollar collar,
+      RatesProvider provider,
+      BlackFxOptionVolatilities volatilities) {
+    return fxPricer.impliedVolatility(collar.getOption2(), provider, volatilities);
   }
 
   /**
