@@ -72,6 +72,14 @@ public final class ImmutableOvernightIndex
    */
   @PropertyDefinition(validate = "notNull", overrideGet = true)
   private final HolidayCalendarId fixingCalendar;
+
+  /**
+   * The calendar that the index uses.
+   * <p>
+   * All dates are calculated with reference to the same calendar.
+   */
+  @PropertyDefinition(validate = "notNull", overrideGet = true)
+  private final HolidayCalendarId effectiveCalendar;
   /**
    * The number of days to add to the fixing date to obtain the publication date.
    * <p>
@@ -219,6 +227,7 @@ public final class ImmutableOvernightIndex
       Currency currency,
       boolean active,
       HolidayCalendarId fixingCalendar,
+      HolidayCalendarId effectiveCalendar,
       int publicationDateOffset,
       int effectiveDateOffset,
       DayCount dayCount,
@@ -226,6 +235,7 @@ public final class ImmutableOvernightIndex
     JodaBeanUtils.notNull(name, "name");
     JodaBeanUtils.notNull(currency, "currency");
     JodaBeanUtils.notNull(fixingCalendar, "fixingCalendar");
+    JodaBeanUtils.notNull(effectiveCalendar, "effectiveCalendar");
     JodaBeanUtils.notNull(publicationDateOffset, "publicationDateOffset");
     JodaBeanUtils.notNull(effectiveDateOffset, "effectiveDateOffset");
     JodaBeanUtils.notNull(dayCount, "dayCount");
@@ -234,6 +244,7 @@ public final class ImmutableOvernightIndex
     this.currency = currency;
     this.active = active;
     this.fixingCalendar = fixingCalendar;
+    this.effectiveCalendar = effectiveCalendar;
     this.publicationDateOffset = publicationDateOffset;
     this.effectiveDateOffset = effectiveDateOffset;
     this.dayCount = dayCount;
@@ -289,6 +300,18 @@ public final class ImmutableOvernightIndex
   public HolidayCalendarId getFixingCalendar() {
     return fixingCalendar;
   }
+
+    //-----------------------------------------------------------------------
+    /**
+     * Gets the calendar that the index uses.
+     * <p>
+     * All dates are calculated with reference to the same calendar.
+     * @return the value of the property, not null
+     */
+    @Override
+    public HolidayCalendarId getEffectiveCalendar() {
+        return effectiveCalendar;
+    }
 
   //-----------------------------------------------------------------------
   /**
@@ -382,6 +405,11 @@ public final class ImmutableOvernightIndex
      */
     private final MetaProperty<HolidayCalendarId> fixingCalendar = DirectMetaProperty.ofImmutable(
         this, "fixingCalendar", ImmutableOvernightIndex.class, HolidayCalendarId.class);
+      /**
+       * The meta-property for the {@code effectiveCalendar} property.
+       */
+      private final MetaProperty<HolidayCalendarId> effectiveCalendar = DirectMetaProperty.ofImmutable(
+              this, "effectiveCalendar", ImmutableOvernightIndex.class, HolidayCalendarId.class);
     /**
      * The meta-property for the {@code publicationDateOffset} property.
      */
@@ -411,6 +439,7 @@ public final class ImmutableOvernightIndex
         "currency",
         "active",
         "fixingCalendar",
+        "effectiveCalendar",
         "publicationDateOffset",
         "effectiveDateOffset",
         "dayCount",
@@ -433,6 +462,8 @@ public final class ImmutableOvernightIndex
           return active;
         case 394230283:  // fixingCalendar
           return fixingCalendar;
+       case 2048586245:  // effectiveCalendar
+          return effectiveCalendar;
         case 1901198637:  // publicationDateOffset
           return publicationDateOffset;
         case 1571923688:  // effectiveDateOffset
@@ -537,6 +568,8 @@ public final class ImmutableOvernightIndex
           return ((ImmutableOvernightIndex) bean).isActive();
         case 394230283:  // fixingCalendar
           return ((ImmutableOvernightIndex) bean).getFixingCalendar();
+        case 2048586245:  // effectiveCalendar
+          return ((ImmutableOvernightIndex) bean).getEffectiveCalendar();
         case 1901198637:  // publicationDateOffset
           return ((ImmutableOvernightIndex) bean).getPublicationDateOffset();
         case 1571923688:  // effectiveDateOffset
@@ -570,6 +603,7 @@ public final class ImmutableOvernightIndex
     private Currency currency;
     private boolean active;
     private HolidayCalendarId fixingCalendar;
+    private HolidayCalendarId effectiveCalendar;
     private int publicationDateOffset;
     private int effectiveDateOffset;
     private DayCount dayCount;
@@ -591,6 +625,7 @@ public final class ImmutableOvernightIndex
       this.currency = beanToCopy.getCurrency();
       this.active = beanToCopy.isActive();
       this.fixingCalendar = beanToCopy.getFixingCalendar();
+      this.effectiveCalendar = beanToCopy.getEffectiveCalendar();
       this.publicationDateOffset = beanToCopy.getPublicationDateOffset();
       this.effectiveDateOffset = beanToCopy.getEffectiveDateOffset();
       this.dayCount = beanToCopy.getDayCount();
@@ -609,6 +644,8 @@ public final class ImmutableOvernightIndex
           return active;
         case 394230283:  // fixingCalendar
           return fixingCalendar;
+        case 2048586245:  // effectiveCalendar
+          return effectiveCalendar;
         case 1901198637:  // publicationDateOffset
           return publicationDateOffset;
         case 1571923688:  // effectiveDateOffset
@@ -636,6 +673,9 @@ public final class ImmutableOvernightIndex
           break;
         case 394230283:  // fixingCalendar
           this.fixingCalendar = (HolidayCalendarId) newValue;
+          break;
+        case 2048586245:  // effectiveCalendar
+          this.effectiveCalendar = (HolidayCalendarId) newValue;
           break;
         case 1901198637:  // publicationDateOffset
           this.publicationDateOffset = (Integer) newValue;
@@ -669,6 +709,7 @@ public final class ImmutableOvernightIndex
           currency,
           active,
           fixingCalendar,
+          effectiveCalendar,
           publicationDateOffset,
           effectiveDateOffset,
           dayCount,
@@ -723,6 +764,19 @@ public final class ImmutableOvernightIndex
       this.fixingCalendar = fixingCalendar;
       return this;
     }
+
+      /**
+       * Sets the effective calendar that the index uses.
+       * <p>
+       * All dates are calculated with reference to the same calendar.
+       * @param effectiveCalendar  the new value, not null
+       * @return this, for chaining, not null
+       */
+      public Builder effectiveCalendar(HolidayCalendarId effectiveCalendar) {
+          JodaBeanUtils.notNull(effectiveCalendar, "effectiveCalendar");
+          this.effectiveCalendar = effectiveCalendar;
+          return this;
+      }
 
     /**
      * Sets the number of days to add to the fixing date to obtain the publication date.

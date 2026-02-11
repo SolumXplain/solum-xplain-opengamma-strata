@@ -47,6 +47,7 @@ final class OvernightIndexCsvLookup
   private static final String ACTIVE_FIELD = "Active";
   private static final String DAY_COUNT_FIELD = "Day Count";
   private static final String FIXING_CALENDAR_FIELD = "Fixing Calendar";
+  private static final String EFFECTIVE_DATE_CALENDAR_FIELD = "Effective Date Calendar";
   private static final String PUBLICATION_DAYS_FIELD = "Publication Offset Days";
   private static final String EFFECTIVE_DAYS_FIELD = "Effective Offset Days";
   private static final String FIXED_LEG_DAY_COUNT = "Fixed Leg Day Count";
@@ -92,8 +93,17 @@ final class OvernightIndexCsvLookup
     String name = row.getValue(NAME_FIELD);
     Currency currency = Currency.parse(row.getValue(CURRENCY_FIELD));
     boolean active = Boolean.parseBoolean(row.getValue(ACTIVE_FIELD));
+    if ("TRUE".equals(row.getValue(DAY_COUNT_FIELD))) {
+      throw new IllegalArgumentException("Day Count cannot be TRUE: " + row);
+    }
     DayCount dayCount = DayCount.of(row.getValue(DAY_COUNT_FIELD));
     HolidayCalendarId fixingCal = HolidayCalendarId.of(row.getValue(FIXING_CALENDAR_FIELD));
+    String configuredEffectiveCal = row.getValue(EFFECTIVE_DATE_CALENDAR_FIELD);
+    HolidayCalendarId effectiveCal = fixingCal;
+    if (!configuredEffectiveCal.isEmpty()) {
+      effectiveCal = HolidayCalendarId.of(row.getValue(EFFECTIVE_DATE_CALENDAR_FIELD));
+    }
+
     int publicationDays = Integer.parseInt(row.getValue(PUBLICATION_DAYS_FIELD));
     int effectiveDays = Integer.parseInt(row.getValue(EFFECTIVE_DAYS_FIELD));
     DayCount fixedLegDayCount = DayCount.of(row.getValue(FIXED_LEG_DAY_COUNT));
@@ -104,6 +114,7 @@ final class OvernightIndexCsvLookup
         .active(active)
         .dayCount(dayCount)
         .fixingCalendar(fixingCal)
+        .effectiveCalendar(effectiveCal)
         .publicationDateOffset(publicationDays)
         .effectiveDateOffset(effectiveDays)
         .defaultFixedLegDayCount(fixedLegDayCount)
