@@ -29,21 +29,21 @@ public interface SwaptionVolatilities
 
   /**
    * Gets the name of these volatilities.
-   * 
+   *
    * @return the name
    */
   public abstract SwaptionVolatilitiesName getName();
 
   /**
    * Gets the convention of the swap for which the data is valid.
-   * 
+   *
    * @return the convention
    */
   public abstract FixedFloatSwapConvention getConvention();
 
   /**
    * Gets the type of volatility returned by the {@link SwaptionVolatilities#volatility} method.
-   * 
+   *
    * @return the type
    */
   public abstract ValueType getVolatilityType();
@@ -52,7 +52,7 @@ public interface SwaptionVolatilities
    * Gets the valuation date.
    * <p>
    * The volatilities are calibrated for this date.
-   * 
+   *
    * @return the valuation date
    */
   @Override
@@ -64,7 +64,7 @@ public interface SwaptionVolatilities
    * Gets the valuation date-time.
    * <p>
    * The volatilities are calibrated for this date-time.
-   * 
+   *
    * @return the valuation date-time
    */
   public abstract ZonedDateTime getValuationDateTime();
@@ -80,7 +80,7 @@ public interface SwaptionVolatilities
    * Calculates the volatility at the specified expiry.
    * <p>
    * This relies on tenor supplied by {@link #tenor(LocalDate, LocalDate)}.
-   * 
+   *
    * @param expiryDateTime  the option expiry
    * @param tenor  the tenor of the instrument as a year fraction
    * @param strike  the option strike rate
@@ -97,7 +97,7 @@ public interface SwaptionVolatilities
    * <p>
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
    * This relies on tenor supplied by {@link #tenor(LocalDate, LocalDate)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param tenor  the tenor of the instrument as a year fraction
    * @param strike  the option strike rate
@@ -113,7 +113,7 @@ public interface SwaptionVolatilities
    * <p>
    * This computes the {@link CurrencyParameterSensitivities} associated with the {@link PointSensitivities}.
    * This corresponds to the projection of the point sensitivity to the internal parameters representation.
-   * 
+   *
    * @param pointSensitivities  the point sensitivities
    * @return the sensitivity to the underlying parameters
    */
@@ -126,7 +126,7 @@ public interface SwaptionVolatilities
    * <p>
    * This computes the {@link CurrencyParameterSensitivities} associated with the {@link PointSensitivities}.
    * This corresponds to the projection of the point sensitivity to the internal parameters representation.
-   * 
+   *
    * @param pointSensitivities  the point sensitivities
    * @return the sensitivity to the underlying parameters
    */
@@ -139,7 +139,7 @@ public interface SwaptionVolatilities
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
    * This relies on tenor supplied by {@link #tenor(LocalDate, LocalDate)}.
    * This relies on volatility supplied by {@link #volatility(double, double, double, double)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param tenor  the tenor of the instrument as a year fraction
    * @param putCall  whether the option is put or call
@@ -165,7 +165,7 @@ public interface SwaptionVolatilities
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
    * This relies on tenor supplied by {@link #tenor(LocalDate, LocalDate)}.
    * This relies on volatility supplied by {@link #volatility(double, double, double, double)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param tenor  the tenor of the instrument as a year fraction
    * @param putCall  whether the option is put or call
@@ -191,7 +191,7 @@ public interface SwaptionVolatilities
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
    * This relies on tenor supplied by {@link #tenor(LocalDate, LocalDate)}.
    * This relies on volatility supplied by {@link #volatility(double, double, double, double)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param tenor  the tenor of the instrument as a year fraction
    * @param putCall  whether the option is put or call
@@ -217,7 +217,7 @@ public interface SwaptionVolatilities
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
    * This relies on tenor supplied by {@link #tenor(LocalDate, LocalDate)}.
    * This relies on volatility supplied by {@link #volatility(double, double, double, double)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param tenor  the tenor of the instrument as a year fraction
    * @param putCall  whether the option is put or call
@@ -243,7 +243,7 @@ public interface SwaptionVolatilities
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
    * This relies on tenor supplied by {@link #tenor(LocalDate, LocalDate)}.
    * This relies on volatility supplied by {@link #volatility(double, double, double, double)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param tenor  the tenor of the instrument as a year fraction
    * @param putCall  whether the option is put or call
@@ -265,8 +265,8 @@ public interface SwaptionVolatilities
   /**
    * Converts a time and date to a relative year fraction.
    * <p>
-   * When the date is after the valuation date (and potentially time), the returned number is negative.
-   * 
+   * When the date is before the valuation date (and potentially time), the returned number is negative.
+   *
    * @param dateTime  the date-time to find the relative year fraction of
    * @return the relative year fraction
    */
@@ -274,7 +274,7 @@ public interface SwaptionVolatilities
 
   /**
    * Calculates the tenor of the swap based on its start date and end date.
-   * 
+   *
    * @param startDate  the start date
    * @param endDate  the end date
    * @return the tenor
