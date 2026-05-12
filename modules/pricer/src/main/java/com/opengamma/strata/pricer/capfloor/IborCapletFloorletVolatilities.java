@@ -28,21 +28,21 @@ public interface IborCapletFloorletVolatilities
 
   /**
    * Gets the name of these volatilities.
-   * 
+   *
    * @return the name
    */
   public abstract IborCapletFloorletVolatilitiesName getName();
 
   /**
    * Gets the Ibor index for which the data is valid.
-   * 
+   *
    * @return the Ibor index
    */
   public abstract IborIndex getIndex();
 
   /**
    * Gets the type of volatility returned by the {@link IborCapletFloorletVolatilities#volatility} method.
-   * 
+   *
    * @return the type
    */
   public abstract ValueType getVolatilityType();
@@ -51,7 +51,7 @@ public interface IborCapletFloorletVolatilities
    * Gets the valuation date.
    * <p>
    * The volatilities are calibrated for this date.
-   * 
+   *
    * @return the valuation date
    */
   @Override
@@ -63,7 +63,7 @@ public interface IborCapletFloorletVolatilities
    * Gets the valuation date-time.
    * <p>
    * The volatilities are calibrated for this date-time.
-   * 
+   *
    * @return the valuation date-time
    */
   public abstract ZonedDateTime getValuationDateTime();
@@ -77,7 +77,7 @@ public interface IborCapletFloorletVolatilities
   //-------------------------------------------------------------------------
   /**
    * Calculates the volatility at the specified expiry.
-   * 
+   *
    * @param expiryDateTime  the option expiry
    * @param strike  the option strike rate
    * @param forward  the forward rate
@@ -92,7 +92,7 @@ public interface IborCapletFloorletVolatilities
    * Calculates the volatility at the specified expiry.
    * <p>
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param strike  the option strike rate
    * @param forward  the forward rate
@@ -107,7 +107,7 @@ public interface IborCapletFloorletVolatilities
    * <p>
    * This computes the {@link CurrencyParameterSensitivities} associated with the {@link PointSensitivities}.
    * This corresponds to the projection of the point sensitivity to the internal parameters representation.
-   * 
+   *
    * @param pointSensitivities  the point sensitivities
    * @return the sensitivity to the underlying parameters
    */
@@ -120,7 +120,7 @@ public interface IborCapletFloorletVolatilities
    * <p>
    * This computes the {@link CurrencyParameterSensitivities} associated with the {@link PointSensitivities}.
    * This corresponds to the projection of the point sensitivity to the internal parameters representation.
-   * 
+   *
    * @param pointSensitivities  the point sensitivities
    * @return the sensitivity to the underlying parameters
    */
@@ -132,7 +132,7 @@ public interface IborCapletFloorletVolatilities
    * <p>
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
    * This relies on volatility supplied by {@link #volatility(double, double, double)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param putCall  whether the option is put or call
    * @param strike  the option strike rate
@@ -155,7 +155,7 @@ public interface IborCapletFloorletVolatilities
    * <p>
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
    * This relies on volatility supplied by {@link #volatility(double, double, double)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param putCall  whether the option is put or call
    * @param strike  the option strike rate
@@ -178,7 +178,7 @@ public interface IborCapletFloorletVolatilities
    * <p>
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
    * This relies on volatility supplied by {@link #volatility(double, double, double)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param putCall  whether the option is put or call
    * @param strike  the option strike rate
@@ -201,7 +201,7 @@ public interface IborCapletFloorletVolatilities
    * <p>
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
    * This relies on volatility supplied by {@link #volatility(double, double, double)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param putCall  whether the option is put or call
    * @param strike  the option strike rate
@@ -224,7 +224,7 @@ public interface IborCapletFloorletVolatilities
    * <p>
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
    * This relies on volatility supplied by {@link #volatility(double, double, double)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param putCall  whether the option is put or call
    * @param strike  the option strike rate
@@ -244,8 +244,8 @@ public interface IborCapletFloorletVolatilities
   /**
    * Converts a time and date to a relative year fraction.
    * <p>
-   * When the date is after the valuation date (and potentially time), the returned number is negative.
-   * 
+   * When the date is before the valuation date (and potentially time), the returned number is negative.
+   *
    * @param dateTime  the date-time to find the relative year fraction of
    * @return the relative year fraction
    */

@@ -159,6 +159,14 @@ public class BlackFxOptionFlatVolatilitiesTest {
     coverBeanEquals(test1, test2);
   }
 
+  @Test
+  public void test_relativeTime() {
+    BlackFxOptionFlatVolatilities test1 = BlackFxOptionFlatVolatilities.of(CURRENCY_PAIR, VAL_DATE_TIME, CURVE);
+    assertThat(test1.relativeTime(VAL_DATE_TIME)).isEqualTo(0.0);
+    assertThat(test1.relativeTime(VAL_DATE_TIME.plusDays(1))).isEqualTo(1.0 / 365.0);
+    assertThat(test1.relativeTime(VAL_DATE_TIME.minusHours(36))).isEqualTo(-1.0 / 365.0);
+  }
+
   //-------------------------------------------------------------------------
   // bumping a node point at nodeExpiry
   private double nodeSensitivity(

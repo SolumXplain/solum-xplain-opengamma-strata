@@ -30,21 +30,21 @@ public interface BondYieldVolatilities
 
   /**
    * Gets the currency for which the data is valid.
-   * 
+   *
    * @return the currency
    */
   public abstract Currency getCurrency();
 
   /**
    * Gets the name of these volatilities.
-   * 
+   *
    * @return the name
    */
   public abstract BondVolatilitiesName getName();
 
   /**
    * Gets the type of volatility returned by the {@link BondYieldVolatilities#volatility} method.
-   * 
+   *
    * @return the type
    */
   public abstract ValueType getVolatilityType();
@@ -53,7 +53,7 @@ public interface BondYieldVolatilities
    * Gets the valuation date-time.
    * <p>
    * The volatilities are calibrated for this date-time.
-   * 
+   *
    * @return the valuation date-time
    */
   public abstract ZonedDateTime getValuationDateTime();
@@ -62,7 +62,7 @@ public interface BondYieldVolatilities
    * Gets the valuation date.
    * <p>
    * The volatilities are calibrated for this date.
-   * 
+   *
    * @return the valuation date
    */
   @Override
@@ -82,7 +82,7 @@ public interface BondYieldVolatilities
    * Calculates the volatility at the specified expiry.
    * <p>
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param duration  the modified duration of the instrument as a year fraction
    * @param strike  the strike yield
@@ -94,7 +94,7 @@ public interface BondYieldVolatilities
 
   /**
    * Calculates the volatility at the specified expiry.
-   * 
+   *
    * @param expiryDateTime  the option expiry
    * @param duration  the modified duration of the instrument as a year fraction
    * @param strike  the strike yield
@@ -108,7 +108,7 @@ public interface BondYieldVolatilities
 
   /**
    * Calculates the price volatility equivalent to the yield volatility.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param duration  the modified duration of the instrument as a year fraction
    * @param strike  the strike yield
@@ -128,7 +128,7 @@ public interface BondYieldVolatilities
    * <li>[0] derivative with respect to the duration
    * <li>[1] derivative with respect to the yieldVolatility
    * </ul>
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param duration  the modified duration of the instrument as a year fraction
    * @param strike  the strike yield
@@ -142,7 +142,7 @@ public interface BondYieldVolatilities
 
   /**
    * Calculates the price volatility equivalent to the yield volatility.
-   * 
+   *
    * @param expiryDateTime  the option expiry
    * @param duration  the modified duration of the instrument as a year fraction
    * @param strike  the strike yield
@@ -167,7 +167,7 @@ public interface BondYieldVolatilities
    * <li>[0] derivative with respect to the duration
    * <li>[1] derivative with respect to the yieldVolatility
    * </ul>
-   * 
+   *
    * @param expiryDateTime  the option expiry
    * @param duration  the modified duration of the instrument as a year fraction
    * @param strike  the strike yield
@@ -186,7 +186,7 @@ public interface BondYieldVolatilities
 
   /**
    * Calculates the price volatility equivalent to the yield volatility.
-   * 
+   *
    * @param duration  the modified duration
    * @param yieldVolatility  the yield volatility
    * @return the price volatility
@@ -203,7 +203,7 @@ public interface BondYieldVolatilities
    * <li>[0] derivative with respect to the duration
    * <li>[1] derivative with respect to the yieldVolatility
    * </ul>
-   * 
+   *
    * @param duration  the modified duration
    * @param yieldVolatility  the yield volatility
    * @return the price volatility
@@ -219,7 +219,7 @@ public interface BondYieldVolatilities
    * <p>
    * This computes the {@link CurrencyParameterSensitivities} associated with the {@link PointSensitivities}.
    * This corresponds to the projection of the point sensitivity to the internal parameters representation.
-   * 
+   *
    * @param pointSensitivities  the point sensitivities
    * @return the sensitivity to the underlying parameters
    */
@@ -232,7 +232,7 @@ public interface BondYieldVolatilities
    * <p>
    * This computes the {@link CurrencyParameterSensitivities} associated with the {@link PointSensitivities}.
    * This corresponds to the projection of the point sensitivity to the internal parameters representation.
-   * 
+   *
    * @param pointSensitivities  the point sensitivities
    * @return the sensitivity to the underlying parameters
    */
@@ -242,8 +242,8 @@ public interface BondYieldVolatilities
   /**
    * Converts a time and date to a relative year fraction.
    * <p>
-   * When the date is after the valuation date (and potentially time), the returned number is negative.
-   * 
+   * When the date is before the valuation date (and potentially time), the returned number is negative.
+   *
    * @param dateTime  the date-time to find the relative year fraction of
    * @return the relative year fraction
    */

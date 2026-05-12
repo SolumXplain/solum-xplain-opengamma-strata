@@ -27,21 +27,21 @@ public interface OvernightFutureOptionVolatilities
 
   /**
    * Gets the name of these volatilities.
-   * 
+   *
    * @return the name
    */
   public abstract OvernightFutureOptionVolatilitiesName getName();
 
   /**
    * Gets the index of the underlying future for which the data is valid.
-   * 
+   *
    * @return the index
    */
   public abstract OvernightIndex getIndex();
 
   /**
    * Gets the type of volatility returned by the {@link OvernightFutureOptionVolatilities#volatility} method.
-   * 
+   *
    * @return the type
    */
   public abstract ValueType getVolatilityType();
@@ -50,7 +50,7 @@ public interface OvernightFutureOptionVolatilities
    * Gets the valuation date.
    * <p>
    * The volatilities are calibrated for this date.
-   * 
+   *
    * @return the valuation date
    */
   @Override
@@ -62,7 +62,7 @@ public interface OvernightFutureOptionVolatilities
    * Gets the valuation date-time.
    * <p>
    * The volatilities are calibrated for this date-time.
-   * 
+   *
    * @return the valuation date-time
    */
   public abstract ZonedDateTime getValuationDateTime();
@@ -76,7 +76,7 @@ public interface OvernightFutureOptionVolatilities
   //-------------------------------------------------------------------------
   /**
    * Calculates the volatility at the specified expiry.
-   * 
+   *
    * @param expiryDateTime  the option expiry
    * @param fixingDate  the underlying future fixing date
    * @param strikePrice  the option strike price
@@ -97,7 +97,7 @@ public interface OvernightFutureOptionVolatilities
    * Calculates the volatility at the specified expiry.
    * <p>
    * This relies on expiry supplied by {@link #relativeTime(ZonedDateTime)}.
-   * 
+   *
    * @param expiry  the time to expiry as a year fraction
    * @param fixingDate  the underlying future fixing date
    * @param strikePrice  the option strike price
@@ -113,7 +113,7 @@ public interface OvernightFutureOptionVolatilities
    * <p>
    * This computes the {@link CurrencyParameterSensitivities} associated with the {@link PointSensitivities}.
    * This corresponds to the projection of the point sensitivity to the internal parameters representation.
-   * 
+   *
    * @param pointSensitivities  the point sensitivities
    * @return the sensitivity to the underlying parameters
    */
@@ -126,7 +126,7 @@ public interface OvernightFutureOptionVolatilities
    * <p>
    * This computes the {@link CurrencyParameterSensitivities} associated with the {@link PointSensitivities}.
    * This corresponds to the projection of the point sensitivity to the internal parameters representation.
-   * 
+   *
    * @param pointSensitivities  the point sensitivities
    * @return the sensitivity to the underlying parameters
    */
@@ -134,10 +134,10 @@ public interface OvernightFutureOptionVolatilities
 
   //-------------------------------------------------------------------------
   /**
-   * Converts a time and date to a relative year fraction. 
+   * Converts a time and date to a relative year fraction.
    * <p>
-   * When the date is after the valuation date (and potentially time), the returned number is negative.
-   * 
+   * When the date is before the valuation date (and potentially time), the returned number is negative.
+   *
    * @param dateTime  the date-time to find the relative year fraction of
    * @return the relative year fraction
    */
