@@ -11,6 +11,7 @@ import org.joda.convert.FromString;
 import org.joda.convert.ToString;
 
 import com.opengamma.strata.basics.ReferenceData;
+import com.opengamma.strata.basics.date.HolidayCalendarId;
 import com.opengamma.strata.collect.ArgChecker;
 import com.opengamma.strata.collect.named.ExtendedEnum;
 import com.opengamma.strata.collect.named.Named;
@@ -60,7 +61,18 @@ public interface OvernightIndex
   }
 
   //-------------------------------------------------------------------------
+
   /**
+   * Gets the calendar that determines which dates are effective dates for settlement.
+   * Not to be confused with the fixing calendar, from RateIndex.
+   *
+   * Exclusively used for Offshore indices.
+   *
+   * @return the calendar used to determine the effective dates of the index.
+   */
+  public abstract HolidayCalendarId getEffectiveCalendar();
+
+    /**
    * Gets the number of days to add to the fixing date to obtain the publication date.
    * <p>
    * In most cases, the fixing rate is available on the fixing date.

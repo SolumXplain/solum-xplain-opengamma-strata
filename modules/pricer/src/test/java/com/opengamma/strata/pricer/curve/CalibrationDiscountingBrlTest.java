@@ -98,6 +98,7 @@ public class CalibrationDiscountingBrlTest {
           .dayCount(CURVE_DC)
           .effectiveDateOffset(0)
           .fixingCalendar(BRBD)
+          .effectiveCalendar(BRBD)
           .name("BRL_CDI").build();
   
   /** Curve name */

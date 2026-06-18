@@ -197,6 +197,7 @@ public class DiscountingSwapProductPricerTest {
           .dayCount(BUS_252)
           .effectiveDateOffset(0)
           .fixingCalendar(BRBD)
+          .effectiveCalendar(BRBD)
           .name("BRL_CDI").build();
 
   private static final DoubleArray DSC_TIMES = DoubleArray.of(0.25, 0.50, 1.00, 2.00, 3.00, 5.00, 10.00);
