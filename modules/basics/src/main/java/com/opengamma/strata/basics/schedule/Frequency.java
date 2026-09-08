@@ -521,6 +521,16 @@ public final class Frequency
    * @throws IllegalArgumentException if the frequency does not exactly divide into this one
    */
   public int exactDivide(Frequency other) {
+    Integer result = safeExactDivide(other);
+    if (result != null) {
+      return result;
+    }
+    throw new IllegalArgumentException(Messages.format(
+        "Frequency '{}' is not a multiple of '{}'", this, other));
+  }
+
+  public Integer safeExactDivide(Frequency other) {
+    // Arithmetic exceptions are still thrown
     ArgChecker.notNull(other, "other");
     if (isMonthBased() && other.isMonthBased()) {
       long paymentMonths = getPeriod().toTotalMonths();
@@ -535,8 +545,7 @@ public final class Frequency
         return Math.toIntExact(paymentDays / accrualDays);
       }
     }
-    throw new IllegalArgumentException(Messages.format(
-        "Frequency '{}' is not a multiple of '{}'", this, other));
+    return null;
   }
 
   //-------------------------------------------------------------------------
