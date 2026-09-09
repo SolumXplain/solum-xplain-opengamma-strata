@@ -395,15 +395,13 @@ public final class ImmutableHolidayCalendar
   //-------------------------------------------------------------------------
   @Override
   public boolean isHoliday(LocalDate date) {
-    try {
       // find data for month
       int index = (date.getYear() - startYear) * 12 + date.getMonthValue() - 1;
+      if (index < 0 || index >= lookup.length) {
+        return isHolidayOutOfRange(date);
+      }
       // check if bit is 1 at zero-based day-of-month
       return (lookup[index] & (1 << (date.getDayOfMonth() - 1))) == 0;
-
-    } catch (ArrayIndexOutOfBoundsException ex) {
-      return isHolidayOutOfRange(date);
-    }
   }
 
   // pulled out to aid hotspot inlining
