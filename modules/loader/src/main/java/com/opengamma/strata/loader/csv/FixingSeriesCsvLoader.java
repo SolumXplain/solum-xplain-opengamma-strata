@@ -123,6 +123,17 @@ public final class FixingSeriesCsvLoader {
   }
 
   //-------------------------------------------------------------------------
+  // a price index date is written as a year-month or as a full end-of-month date, and which one is
+  // not known until it is parsed - so the miss is routine and must not cost an exception
+  private static YearMonth tryParseYearMonthOrNull(String dateStr) {
+    try {
+      return LoaderUtils.tryParseYearMonth(dateStr);
+    } catch (RuntimeException ex) {
+      // an Excel-style date that is not the 1st, which the full-date branch below handles
+      return null;
+    }
+  }
+
   // loads a single fixing series CSV file
   private static ImmutableMap<ObservableId, LocalDateDoubleTimeSeries> parseSingle(CharSource resource) {
     Map<ObservableId, LocalDateDoubleTimeSeriesBuilder> builders = new HashMap<>();
@@ -138,10 +149,10 @@ public final class FixingSeriesCsvLoader {
         double value = Double.parseDouble(valueStr);
         LocalDate date;
         if (index instanceof PriceIndex) {
-          try {
-            YearMonth ym = LoaderUtils.parseYearMonth(dateStr);
+          YearMonth ym = tryParseYearMonthOrNull(dateStr);
+          if (ym != null) {
             date = ym.atEndOfMonth();
-          } catch (RuntimeException ex) {
+          } else {
             date = LoaderUtils.parseDate(dateStr);
             if (date.getDayOfMonth() != date.lengthOfMonth()) {
               throw new ParseFailureException(
