@@ -521,6 +521,29 @@ public final class Frequency
    * @throws IllegalArgumentException if the frequency does not exactly divide into this one
    */
   public int exactDivide(Frequency other) {
+    Integer result = safeExactDivide(other);
+    if (result != null) {
+      return result;
+    }
+    throw new IllegalArgumentException(Messages.format(
+        "Frequency '{}' is not a multiple of '{}'", this, other));
+  }
+
+  /**
+   * Checks whether this frequency exactly divides by the specified frequency, returning the result.
+   * <p>
+   * This is {@link #exactDivide(Frequency)} without the exception: a frequency that does not divide
+   * exactly returns null rather than throwing. Callers that only need to know whether the division
+   * is possible should use this, because building the exception is far more expensive than the
+   * division, and dominates when the answer is routinely 'no'.
+   * <p>
+   * An {@code ArithmeticException} is still thrown if the result overflows an {@code int}, and
+   * {@code other} must not be null.
+   *
+   * @param other  the other frequency to divide into this one
+   * @return this frequency divided by the other frequency, null if it does not divide exactly
+   */
+  public Integer safeExactDivide(Frequency other) {
     ArgChecker.notNull(other, "other");
     if (isMonthBased() && other.isMonthBased()) {
       long paymentMonths = getPeriod().toTotalMonths();
@@ -535,8 +558,7 @@ public final class Frequency
         return Math.toIntExact(paymentDays / accrualDays);
       }
     }
-    throw new IllegalArgumentException(Messages.format(
-        "Frequency '{}' is not a multiple of '{}'", this, other));
+    return null;
   }
 
   //-------------------------------------------------------------------------
