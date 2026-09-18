@@ -199,10 +199,9 @@ public final class RateCalculationSwapLeg
   }
 
   private boolean validPaymentAndAccrualFrequencyCombination() {
-    try {
-      paymentSchedule.getPaymentFrequency().exactDivide(accrualSchedule.getFrequency());
+    if (paymentSchedule.getPaymentFrequency().safeExactDivide(accrualSchedule.getFrequency()) != null) {
       return true;
-    } catch (IllegalArgumentException ex) {
+    } else {
       boolean isTermPayFrequency = paymentSchedule.getPaymentFrequency().isTerm();
       boolean isWeekBased = accrualSchedule.getFrequency().isWeekBased();
 

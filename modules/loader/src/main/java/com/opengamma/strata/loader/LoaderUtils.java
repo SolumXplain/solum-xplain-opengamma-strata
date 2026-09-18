@@ -516,6 +516,41 @@ public final class LoaderUtils {
    * @throws ParseFailureException if the string cannot be parsed
    */
   public static YearMonth parseYearMonth(String str) {
+    YearMonth yearMonth = tryParseYearMonth(str);
+    if (yearMonth != null) {
+      return yearMonth;
+    }
+    throw new ParseFailureException(
+        "Unable to parse year-month from '{value}', must be formatted as " +
+            "'yyyy-MM', 'yyyyMM', 'MMM-yyyy', 'MMMyyyy', 'MMM-yy' or 'MMMyy'",
+        str);
+  }
+
+  // true when every character is an ASCII digit
+  private static boolean isAllDigits(String str) {
+    for (int i = 0; i < str.length(); i++) {
+      if (str.charAt(i) < '0' || str.charAt(i) > '9') {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Parses a year-month from the input string, returning null if it is not one.
+   * <p>
+   * This is {@link #parseYearMonth(String)} without the exception for a string that is simply not a
+   * year-month. Callers that have another format to fall back on should use this, because building
+   * the exception costs far more than the parse, and dominates when the fallback is the common case.
+   * <p>
+   * An Excel-style date whose day-of-month is not the 1st still throws, because that is a malformed
+   * year-month rather than a different format, and the message says so.
+   *
+   * @param str  the string to parse
+   * @return the parsed year-month, null if the string is not in any accepted year-month format
+   * @throws ParseFailureException if the string is an Excel-style date that is not the 1st
+   */
+  public static YearMonth tryParseYearMonth(String str) {
     try {
       // yyyy-MM
       if (str.length() == 7 && str.charAt(4) == '-') {
@@ -538,13 +573,15 @@ public final class LoaderUtils {
             "Unable to parse year-month from '{value}', found Excel-style date but day-of-month was not set to 1", str);
       }
       // yyyyMM
-      return YearMonth.parse(str, YYYYMM);
+      // checked rather than attempted, because anything that is not a year-month at all reaches
+      // here, and letting the parse fail is what made the miss cost an exception
+      if (str.length() == 6 && isAllDigits(str)) {
+        return YearMonth.parse(str, YYYYMM);
+      }
+      return null;
 
     } catch (DateTimeParseException ex) {
-      throw new ParseFailureException(
-          "Unable to parse year-month from '{value}', must be formatted as " +
-              "'yyyy-MM', 'yyyyMM', 'MMM-yyyy', 'MMMyyyy', 'MMM-yy' or 'MMMyy'",
-          str);
+      return null;
     }
   }
 
