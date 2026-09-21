@@ -395,15 +395,13 @@ public final class ImmutableHolidayCalendar
   //-------------------------------------------------------------------------
   @Override
   public boolean isHoliday(LocalDate date) {
-    try {
-      // find data for month
-      int index = (date.getYear() - startYear) * 12 + date.getMonthValue() - 1;
-      // check if bit is 1 at zero-based day-of-month
-      return (lookup[index] & (1 << (date.getDayOfMonth() - 1))) == 0;
-
-    } catch (ArrayIndexOutOfBoundsException ex) {
+    // find data for month
+    int index = (date.getYear() - startYear) * 12 + date.getMonthValue() - 1;
+    if (index < 0 || index >= lookup.length) {
       return isHolidayOutOfRange(date);
     }
+    // check if bit is 1 at zero-based day-of-month
+    return (lookup[index] & (1 << (date.getDayOfMonth() - 1))) == 0;
   }
 
   // pulled out to aid hotspot inlining
@@ -417,19 +415,16 @@ public final class ImmutableHolidayCalendar
   //-------------------------------------------------------------------------
   @Override
   public LocalDate shift(LocalDate date, int amount) {
-    try {
-      if (amount > 0) {
-        // day-of-month: minus one for zero-based day-of-month, plus one to start from next day
-        return shiftNext(date.getYear(), date.getMonthValue(), date.getDayOfMonth(), amount);
-      } else if (amount < 0) {
-        // day-of-month: minus one to start from previous day
-        return shiftPrev(date.getYear(), date.getMonthValue(), date.getDayOfMonth() - 1, amount);
-      }
-      return date;
-
-    } catch (ArrayIndexOutOfBoundsException ex) {
-      return shiftOutOfRange(date, amount);
+    if (amount > 0) {
+      // day-of-month: minus one for zero-based day-of-month, plus one to start from next day
+      LocalDate shifted = shiftNext(date.getYear(), date.getMonthValue(), date.getDayOfMonth(), amount);
+      return shifted != null ? shifted : shiftOutOfRange(date, amount);
+    } else if (amount < 0) {
+      // day-of-month: minus one to start from previous day
+      LocalDate shifted = shiftPrev(date.getYear(), date.getMonthValue(), date.getDayOfMonth() - 1, amount);
+      return shifted != null ? shifted : shiftOutOfRange(date, amount);
     }
+    return date;
   }
 
   // pulled out to aid hotspot inlining
@@ -443,20 +438,21 @@ public final class ImmutableHolidayCalendar
   //-------------------------------------------------------------------------
   @Override
   public LocalDate next(LocalDate date) {
-    try {
-      // day-of-month: minus one for zero-based day-of-month, plus one to start from next day
-      return shiftNext(date.getYear(), date.getMonthValue(), date.getDayOfMonth(), 1);
-
-    } catch (ArrayIndexOutOfBoundsException ex) {
-      return HolidayCalendar.super.next(date);
-    }
+    // day-of-month: minus one for zero-based day-of-month, plus one to start from next day
+    LocalDate shifted = shiftNext(date.getYear(), date.getMonthValue(), date.getDayOfMonth(), 1);
+    return shifted != null ? shifted : HolidayCalendar.super.next(date);
   }
 
   // shift to a later working day, following nextOrSame semantics
   // input day-of-month is zero-based
+  // returns null when the month is outside the lookup table, including when the shift walks off
+  // the end part-way through; every caller treats null as 'out of range' and falls back
   private LocalDate shiftNext(int baseYear, int baseMonth, int baseDom0, int amount) {
     // find data for month
     int index = (baseYear - startYear) * 12 + baseMonth - 1;
+    if (index < 0 || index >= lookup.length) {
+      return null;
+    }
     int monthData = lookup[index];
     // loop around amount, the number of days to shift by
     // use domOffset to keep track of day-of-month
@@ -478,20 +474,20 @@ public final class ImmutableHolidayCalendar
   //-------------------------------------------------------------------------
   @Override
   public LocalDate previous(LocalDate date) {
-    try {
-      // day-of-month: minus one to start from previous day
-      return shiftPrev(date.getYear(), date.getMonthValue(), date.getDayOfMonth() - 1, -1);
-
-    } catch (ArrayIndexOutOfBoundsException ex) {
-      return previousOutOfRange(date);
-    }
+    // day-of-month: minus one to start from previous day
+    LocalDate shifted = shiftPrev(date.getYear(), date.getMonthValue(), date.getDayOfMonth() - 1, -1);
+    return shifted != null ? shifted : previousOutOfRange(date);
   }
 
   // shift to an earlier working day, following previousOrSame semantics
   // input day-of-month is one-based and may be zero or negative
+  // returns null when out of range, as shiftNext does
   private LocalDate shiftPrev(int baseYear, int baseMonth, int baseDom, int amount) {
     // find data for month
     int index = (baseYear - startYear) * 12 + baseMonth - 1;
+    if (index < 0 || index >= lookup.length) {
+      return null;
+    }
     int monthData = lookup[index];
     // loop around amount, the number of days to shift by
     // use domOffset to keep track of day-of-month
@@ -521,13 +517,9 @@ public final class ImmutableHolidayCalendar
   //-------------------------------------------------------------------------
   @Override
   public LocalDate nextSameOrLastInMonth(LocalDate date) {
-    try {
-      // day-of-month: no alteration as method is one-based and same is valid
-      return shiftNextSameLast(date);
-
-    } catch (ArrayIndexOutOfBoundsException ex) {
-      return HolidayCalendar.super.nextSameOrLastInMonth(date);
-    }
+    // day-of-month: no alteration as method is one-based and same is valid
+    LocalDate shifted = shiftNextSameLast(date);
+    return shifted != null ? shifted : HolidayCalendar.super.nextSameOrLastInMonth(date);
   }
 
   // shift to a later working day, following nextOrSame semantics
@@ -539,6 +531,9 @@ public final class ImmutableHolidayCalendar
     int baseDom = baseDate.getDayOfMonth();
     // find data for month
     int index = (baseYear - startYear) * 12 + baseMonth - 1;
+    if (index < 0 || index >= lookup.length) {
+      return null;
+    }
     int monthData = lookup[index];
     // shift to move the target day-of-month into bit-0, removing earlier days
     int shifted = monthData >>> (baseDom - 1);
@@ -561,16 +556,14 @@ public final class ImmutableHolidayCalendar
   //-------------------------------------------------------------------------
   @Override
   public boolean isLastBusinessDayOfMonth(LocalDate date) {
-    try {
-      // find data for month
-      int index = (date.getYear() - startYear) * 12 + date.getMonthValue() - 1;
-      // shift right, leaving the input date as bit-0 and filling with 0 on the left
-      // if the result is 1, which is all zeroes and a final 1 (...0001) then it is last business day of month
-      return (lookup[index] >>> (date.getDayOfMonth() - 1)) == 1;
-
-    } catch (ArrayIndexOutOfBoundsException ex) {
+    // find data for month
+    int index = (date.getYear() - startYear) * 12 + date.getMonthValue() - 1;
+    if (index < 0 || index >= lookup.length) {
       return isLastBusinessDayOfMonthOutOfRange(date);
     }
+    // shift right, leaving the input date as bit-0 and filling with 0 on the left
+    // if the result is 1, which is all zeroes and a final 1 (...0001) then it is last business day of month
+    return (lookup[index] >>> (date.getDayOfMonth() - 1)) == 1;
   }
 
   // pulled out to aid hotspot inlining
@@ -584,17 +577,15 @@ public final class ImmutableHolidayCalendar
   //-------------------------------------------------------------------------
   @Override
   public LocalDate lastBusinessDayOfMonth(LocalDate date) {
-    try {
-      // find data for month
-      int index = (date.getYear() - startYear) * 12 + date.getMonthValue() - 1;
-      // need to find the most significant bit, which is the last business day
-      // use JDK numberOfLeadingZeros() method which is mapped to a fast intrinsic
-      int leading = Integer.numberOfLeadingZeros(lookup[index]);
-      return date.withDayOfMonth(32 - leading);
-
-    } catch (ArrayIndexOutOfBoundsException ex) {
+    // find data for month
+    int index = (date.getYear() - startYear) * 12 + date.getMonthValue() - 1;
+    if (index < 0 || index >= lookup.length) {
       return lastBusinessDayOfMonthOutOfRange(date);
     }
+    // need to find the most significant bit, which is the last business day
+    // use JDK numberOfLeadingZeros() method which is mapped to a fast intrinsic
+    int leading = Integer.numberOfLeadingZeros(lookup[index]);
+    return date.withDayOfMonth(32 - leading);
   }
 
   // pulled out to aid hotspot inlining
@@ -609,32 +600,31 @@ public final class ImmutableHolidayCalendar
   @Override
   public int daysBetween(LocalDate startInclusive, LocalDate endExclusive) {
     ArgChecker.inOrderOrEqual(startInclusive, endExclusive, "startInclusive", "endExclusive");
-    try {
-      // find data for start and end month
-      int startIndex = (startInclusive.getYear() - startYear) * 12 + startInclusive.getMonthValue() - 1;
-      int endIndex = (endExclusive.getYear() - startYear) * 12 + endExclusive.getMonthValue() - 1;
-      
-      // count of first month = ones after day of month inclusive
-      // e.g 4th day of month - want holidays from index 3 inclusive
-      int start = Integer.bitCount(lookup[startIndex] >>> (startInclusive.getDayOfMonth() - 1));
-      // count of last month = ones before day of month exclusive == total for month - ones after end inclusive
-      int missingEnd = Integer.bitCount(lookup[endIndex] >>> (endExclusive.getDayOfMonth() - 1));
-      if (startIndex == endIndex) {
-        // same month - return holidays up to end exclusive 
-        return start - missingEnd;
-      }
-      
-      int end = Integer.bitCount(lookup[endIndex]) - missingEnd;
-      // otherwise add start and end month counts, and sum months between
-      int count = start + end;
-      for (int i = startIndex + 1; i < endIndex; i++) {
-        count += Integer.bitCount(lookup[i]);
-      }
-      return count;
-
-    } catch (ArrayIndexOutOfBoundsException ex) {
+    // find data for start and end month
+    int startIndex = (startInclusive.getYear() - startYear) * 12 + startInclusive.getMonthValue() - 1;
+    int endIndex = (endExclusive.getYear() - startYear) * 12 + endExclusive.getMonthValue() - 1;
+    // the dates are in order, so these two bounds cover every index the loop below reads
+    if (startIndex < 0 || endIndex >= lookup.length) {
       return daysBetweenOutOfRange(startInclusive, endExclusive);
     }
+
+    // count of first month = ones after day of month inclusive
+    // e.g 4th day of month - want holidays from index 3 inclusive
+    int start = Integer.bitCount(lookup[startIndex] >>> (startInclusive.getDayOfMonth() - 1));
+    // count of last month = ones before day of month exclusive == total for month - ones after end inclusive
+    int missingEnd = Integer.bitCount(lookup[endIndex] >>> (endExclusive.getDayOfMonth() - 1));
+    if (startIndex == endIndex) {
+      // same month - return holidays up to end exclusive
+      return start - missingEnd;
+    }
+
+    int end = Integer.bitCount(lookup[endIndex]) - missingEnd;
+    // otherwise add start and end month counts, and sum months between
+    int count = start + end;
+    for (int i = startIndex + 1; i < endIndex; i++) {
+      count += Integer.bitCount(lookup[i]);
+    }
+    return count;
   }
 
   // pulled out to aid hotspot inlining
